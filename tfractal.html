@@ -1,0 +1,50 @@
+<!DOCTYPE html> 
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>T-Fractal</title>
+	<style>
+		body { font-family: sans-serif; background-color:#ccc; }
+		canvas { border: 1px solid #fff; margin: 10px; }
+		.block { border: 1px solid #fff; display:inline-block; margin: 10px; padding: 5px;}
+		.key { padding-top: 5px; }
+	</style>
+<script type="text/javascript" src="tfractal.js"></script>
+</head>
+<body>
+	<div class="block">
+		<label>Color mode: 
+			<select id="colorMode" onchange="renderColorModeOnly()">
+			<option value="grayscale">Grayscale</option>
+			<option value="hsl">HSL</option>
+			<option value="binary">Black/White (mod 2)</option>
+			<option value="livingstone">Livingstone (OperaSoft)</option>
+			<option value="alleycat">Alley Cat</option>
+			</select>
+		</label>
+	</div>
+	<div style="clear:both" />
+	<div class="block">
+		<label>Seed size:
+		<input id="seedSize" type="number" min="2" max="10" value="4" onchange="generateCheckboxGrid()"/>
+		</label>
+		<button onclick="generateCheckboxGrid()">Update Grid</button>
+		<button id="wipeButton" onclick="wipeCheckboxGrid()" style="display:none;">Wipe Grid</button>
+	</div>
+	<div style="clear:both" />
+	<div class="block">
+		<div id="checkboxGrid" style="margin-top: 10px;"></div>
+		<button id="generateButton" onclick="applySeed()" disabled="disabled">Generate Fractal</button>
+	</div>
+	<div style="clear:both" />
+	<div class="fractal" id="myid">
+		<div>
+			<canvas id="myCanvas"></canvas>
+		</div>
+	</div>
+	<script>
+		init();
+	</script>
+	<b><div>Github repo: <a href="https://github.com/xcontcom">https://github.com/xcontcom</a></div>
+</body>
+</html>
