@@ -1,6 +1,5 @@
 const iterations=10;
 const sizexy=2**iterations;
-const size=1;
 let array;
 
 let seed = [
@@ -22,7 +21,7 @@ function init() {
 			array[x][y]=0;
 		}
 	}
-	
+
 	let pattern = seed;
 	
 	for(let i=0;i<iterations-1;i++){
@@ -55,8 +54,8 @@ function init() {
 function renderColorModeOnly() {
 	mode = document.getElementById("colorMode").value;
 	const canvas = document.getElementById('myCanvas');
-	canvas.width = sizexy * size;
-	canvas.height = sizexy * size;
+	canvas.width = sizexy;
+	canvas.height = sizexy;
 	const ctx = canvas.getContext('2d');
 
 	ctx.fillStyle = 'rgb(0,0,0)';
@@ -97,7 +96,7 @@ function renderColorModeOnly() {
 			}
 
 			ctx.fillStyle = color;
-			ctx.fillRect(x * size, y * size, size, size);
+			ctx.fillRect(x, y, 1, 1);
 		}
 	}
 }
@@ -111,25 +110,13 @@ function enableGenerateButton() {
 	document.getElementById("colorMode").disabled = true;
 }
 
-function generateCheckboxGrid() {
+function renderCheckboxGridFromSeed(inputSeed) {
+	const size = inputSeed.length;
 	const grid = document.getElementById("checkboxGrid");
 	const wipeButton = document.getElementById("wipeButton");
-	const size = parseInt(document.getElementById("seedSize").value);
 
-	if (gridVisible && size !== currentGridSize) {
-		currentGridSize = size;
-	} else if (gridVisible) {
-		// Just hide everything
-		grid.innerHTML = "";
-		gridVisible = false;
-		wipeButton.style.display = "none";
-		document.getElementById("colorMode").disabled = false;
-		document.getElementById("generateButton").disabled = true;
-		return;
-	}
-
-	// Build grid
 	grid.innerHTML = "";
+
 	const table = document.createElement("table");
 	table.style.borderCollapse = "collapse";
 
@@ -144,7 +131,7 @@ function generateCheckboxGrid() {
 			cbInput.id = `cb_${i}_${j}`;
 			cbInput.onchange = enableGenerateButton;
 
-			if (seed?.[i]?.[j]) cbInput.checked = true;
+			if (inputSeed[i][j]) cbInput.checked = true;
 
 			cell.appendChild(cbInput);
 			row.appendChild(cell);
@@ -157,7 +144,64 @@ function generateCheckboxGrid() {
 	currentGridSize = size;
 	document.getElementById("colorMode").disabled = true;
 	document.getElementById("generateButton").disabled = false;
-	wipeButton.style.display = "inline-block"; // 👈 show the button
+	wipeButton.style.display = "inline-block";
+}
+
+function generateCheckboxGrid() {
+	const size = parseInt(document.getElementById("seedSize").value);
+	const grid = document.getElementById("checkboxGrid");
+
+	if (gridVisible && size !== currentGridSize) {
+		currentGridSize = size;
+	} else if (gridVisible) {
+		grid.innerHTML = "";
+		gridVisible = false;
+		document.getElementById("colorMode").disabled = false;
+		document.getElementById("generateButton").disabled = true;
+		document.getElementById("wipeButton").style.display = "none";
+		return;
+	}
+
+	// Resize seed if needed
+	const resizedSeed = [];
+	for (let i = 0; i < size; i++) {
+		resizedSeed[i] = [];
+		for (let j = 0; j < size; j++) {
+			resizedSeed[i][j] = seed?.[i]?.[j] ? 1 : 0;
+		}
+	}
+
+	renderCheckboxGridFromSeed(resizedSeed);
+}
+
+function generateRandomSeed() {
+	const size = parseInt(document.getElementById("seedSize").value);
+	// Initialize the 2D array first
+	let newSeed=[];
+	for (let i = 0; i < size; i++) {
+		newSeed[i] = [];
+		for (let j = 0; j < size; j++) {
+			newSeed[i][j] = 0; // prefill with zeroes or placeholders
+		}
+	}
+
+	for (let i = 0; i < size; i++) {
+		for (let j = 0; j < size; j++) {
+			if (i <= j && i + j <= size - 1) {
+				const value = Math.random() < 0.5 ? 1 : 0;
+
+				// Set all 4 symmetric positions
+				newSeed[i][j] = value;
+				newSeed[j][i] = value;
+				newSeed[size - i - 1][size - j - 1] = value;
+				newSeed[size - j - 1][size - i - 1] = value;
+			}
+		}
+	}
+
+	seed = newSeed;
+	renderCheckboxGridFromSeed(seed);
+	applySeed();
 }
 
 function wipeCheckboxGrid() {
