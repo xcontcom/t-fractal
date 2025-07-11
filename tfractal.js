@@ -1,5 +1,6 @@
-const iterations=10;
-const sizexy=2**iterations;
+let iterations=8;
+let sizexy=2**iterations;
+let pixelSize=2;
 let array;
 
 let seed = [
@@ -13,7 +14,15 @@ let mode;
 
 let range, min, max;
 
+
+function updateGlobalSettings() {
+	iterations = parseInt(document.getElementById("iterations").value);
+	pixelSize = parseInt(document.getElementById("pixelSize").value);
+	sizexy = 2 ** iterations;
+}
+
 function init() {
+	updateGlobalSettings();
 	array=[];
 	for (let x = 0; x < sizexy; x++) {
 		array[x]=[];
@@ -54,8 +63,8 @@ function init() {
 function renderColorModeOnly() {
 	mode = document.getElementById("colorMode").value;
 	const canvas = document.getElementById('myCanvas');
-	canvas.width = sizexy;
-	canvas.height = sizexy;
+	canvas.width = sizexy*pixelSize;
+	canvas.height = sizexy*pixelSize;
 	const ctx = canvas.getContext('2d');
 
 	ctx.fillStyle = 'rgb(0,0,0)';
@@ -82,6 +91,15 @@ function renderColorModeOnly() {
 					color = (val % 2 === 0) ? "black" : "white";
 					break;
 					
+				case "ternary":
+					color = (val % 3 === 0) ? "black" : "white";
+					break;
+					
+				case "rgb":
+					const palette = ["#f00", "#0f0", "#00f"];
+					color = palette[val % palette.length];
+					break;
+					
 				case "livingstone": {
 					const palette = ["#000", "#5f5", "#f55", "#ff5"];
 					color = palette[val % palette.length];
@@ -96,7 +114,7 @@ function renderColorModeOnly() {
 			}
 
 			ctx.fillStyle = color;
-			ctx.fillRect(x, y, 1, 1);
+			ctx.fillRect(x*pixelSize, y*pixelSize, 1*pixelSize, 1*pixelSize);
 		}
 	}
 }

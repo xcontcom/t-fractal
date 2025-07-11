@@ -13,11 +13,21 @@
 </head>
 <body>
 	<div class="block">
+		<label for="iterations">Iterations:</label>
+		<input type="number" id="iterations" min="1" max="10" value="9" onchange="init()" />
+
+		<label for="pixelSize">Pixel Size:</label>
+		<input type="number" id="pixelSize" min="1" max="3" value="1" onchange="init()" />
+	</div>
+	<div style="clear:both" />
+	<div class="block">
 		<label>Color mode: 
 			<select id="colorMode" onchange="renderColorModeOnly()">
 			<option value="grayscale">Grayscale</option>
 			<option value="hsl">HSL</option>
 			<option value="binary">Black/White (mod 2)</option>
+			<option value="ternary">Black/White (mod 3)</option>
+			<option value="rgb">RGB</option>
 			<option value="livingstone">Livingstone (OperaSoft)</option>
 			<option value="alleycat">Alley Cat</option>
 			</select>
@@ -26,7 +36,7 @@
 	<div style="clear:both" />
 	<div class="block">
 		<label>Seed size:
-		<input id="seedSize" type="number" min="2" max="10" value="4" onchange="generateCheckboxGrid()"/>
+		<input id="seedSize" type="number" min="2" max="10" value="4" onchange="generateCheckboxGrid()" />
 		</label>
 		<button onclick="generateCheckboxGrid()">Update Grid</button>
 		<button id="wipeButton" onclick="wipeCheckboxGrid()" style="display:none;">Wipe Grid</button>
