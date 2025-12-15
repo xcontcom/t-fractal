@@ -84,7 +84,7 @@ function makeRandomSeed3D(n) {
 	}
 
 	// Choose ONE mirroring method for the whole seed
-	const useRot180 = 1;//Math.random() < 0.5;
+	const useRot180 = Math.random() < 0.5;
 
 	// Mirror z -> (n-1-z)
 	// For even n, the "center pair" is (half-1) <-> half (e.g. 4<->5 for n=10)
@@ -346,3 +346,4 @@ function init() {
 	renderSeedEditor();
 	renderCurrentSlice();
 }
+
