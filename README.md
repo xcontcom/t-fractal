@@ -24,6 +24,8 @@ Then we color the result - using grayscale, rainbow, or CGA palettes - based on 
 
 [Demo](http://xcont.com/tfractal/)
 
+[Demo 3D](https://xcont.com/tfractal/3d.html)
+
 ---
 
 ## License
