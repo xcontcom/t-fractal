@@ -1,36 +1,47 @@
-let iterations = 8;
-let sizexy = 2 ** iterations;
-let sizez	= 2 ** iterations;
-let pixelSize = 2;
+// ============================================================================
+// T-FRACTAL 3D - 3D Toroidal Fractal Slice Viewer
+// Visualizes 2D slices through a 3D toroidal fractal generated from a small
+// 3D seed via repeated toroidal expansion.
+// ============================================================================
 
-let seed3d = null;			// seed3d[x][y][z] in {0,1}
-let seedSize = 4;
+// GLOBAL STATE
+let iterations = 8;                    // Fractal iterations (2^iterations = XY resolution)
+let sizexy = 1 << iterations;          // XY canvas resolution
+let sizez = 1 << iterations;           // Z depth (slice count)
+let pixelSize = 2;                     // Pixel scaling factor
 
-let currentZ = 0;			 // 0..sizez-1 (big Z slicer)
-let level = 0;					// used in "level" mode (value slicer)
+let seed3d = null;                     // 3D seed: seed3d[x][y][z] ∈ {0,1}
+let seedSize = 4;                      // Seed cube edge length
 
-let seedEditorVisible = true;
+let currentZ = 0;                      // Current Z slice
+let level = 0;                         // Level threshold (level color mode)
+let seedToolsVisible = false;          // Seed editor UI state
 
-// ---------- Settings ----------
+// SETTINGS
 function updateGlobalSettings() {
 	iterations = parseInt(document.getElementById("iterations").value, 10);
-	pixelSize	= parseInt(document.getElementById("pixelSize").value, 10);
+	pixelSize  = parseInt(document.getElementById("pixelSize").value, 10);
 
-	sizexy = 2 ** iterations;
-	sizez	= 2 ** iterations;
+	sizexy = 1 << iterations;
+	sizez  = 1 << iterations;
 
 	const zSlider = document.getElementById("zSlice");
 	zSlider.min = 0;
-	zSlider.max = Math.max(0, sizez - 1);
+	zSlider.max = sizez - 1;
 
 	currentZ = Math.min(currentZ, sizez - 1);
 	zSlider.value = currentZ;
 
-	document.getElementById("zSliceValue").textContent = String(currentZ);
-	document.getElementById("zMaxValue").textContent = String(sizez - 1);
+	document.getElementById("zSliceValue").textContent = currentZ;
+	document.getElementById("zMaxValue").textContent = sizez - 1;
 }
 
-// ---------- Seed helpers ----------
+// ============================================================================
+// 3D SEED ALLOCATION & GENERATION
+// Seed is small N×N×N binary cube that tiles toroidally to generate fractal.
+// ============================================================================
+
+// Allocate N×N×N 3D seed array filled with `fill` value
 function allocSeed3D(n, fill = 0) {
 	const s = new Array(n);
 	for (let x = 0; x < n; x++) {
@@ -42,68 +53,49 @@ function allocSeed3D(n, fill = 0) {
 	return s;
 }
 
+// Ring seed: 1s on XY perimeter extruded through all Z slices
 function makeRingSeed3D(n) {
-	// Ring in XY, extruded through Z
 	const s = allocSeed3D(n, 0);
 	for (let x = 0; x < n; x++) {
 		for (let y = 0; y < n; y++) {
-			const border = (x === 0 || y === 0 || x === n - 1 || y === n - 1) ? 1 : 0;
-			for (let z = 0; z < n; z++) s[x][y][z] = border;
+			const v = (x === 0 || y === 0 || x === n - 1 || y === n - 1) ? 1 : 0;
+			for (let z = 0; z < n; z++) s[x][y][z] = v;
 		}
 	}
 	return s;
 }
 
+// Randomized symmetric seed with rotational symmetry
 function makeRandomSeed3D(n) {
 	const s = allocSeed3D(n, 0);
 
-	function genLayerDiagonalSymmetry(z) {
+	function genLayer(z) {
 		for (let i = 0; i < n; i++) {
 			for (let j = 0; j < n; j++) {
 				if (i <= j && i + j <= n - 1) {
 					const v = Math.random() < 0.5 ? 1 : 0;
-
-					// 2D diagonal + central symmetry inside XY plane, fixed z
 					s[i][j][z] = v;
 					s[j][i][z] = v;
-					s[n - 1 - i][n - 1 - j][z] = v;
-					s[n - 1 - j][n - 1 - i][z] = v;
+					s[n-1-i][n-1-j][z] = v;
+					s[n-1-j][n-1-i][z] = v;
 				}
 			}
 		}
 	}
 
-	// Generate count:
-	// even n: generate z=0..(n/2-1)	(e.g. n=10 -> z=0..4)
-	// odd	n: generate z=0..(floor(n/2)) (includes true middle)
 	const half = Math.floor(n / 2);
-	const genCount = (n % 2 === 0) ? half : (half + 1);
+	const genCount = (n % 2 === 0) ? half : half + 1;
 
-	for (let z = 0; z < genCount; z++) {
-		genLayerDiagonalSymmetry(z);
-	}
+	for (let z = 0; z < genCount; z++) genLayer(z);
 
-	// Choose ONE mirroring method for the whole seed
 	const useRot180 = Math.random() < 0.5;
-
-	// Mirror z -> (n-1-z)
-	// For even n, the "center pair" is (half-1) <-> half (e.g. 4<->5 for n=10)
 	for (let z = 0; z < half; z++) {
 		const z2 = n - 1 - z;
-
-		if (!useRot180) {
-			// plain copy
-			for (let x = 0; x < n; x++) {
-				for (let y = 0; y < n; y++) {
-					s[x][y][z2] = s[x][y][z];
-				}
-			}
-		} else {
-			// copy with 180° rotation in XY
-			for (let x = 0; x < n; x++) {
-				for (let y = 0; y < n; y++) {
-					s[x][y][z2] = s[y][n - 1 - x][z];
-				}
+		for (let x = 0; x < n; x++) {
+			for (let y = 0; y < n; y++) {
+				s[x][y][z2] = useRot180
+					? s[y][n-1-x][z]
+					: s[x][y][z];
 			}
 		}
 	}
@@ -111,13 +103,18 @@ function makeRandomSeed3D(n) {
 	return s;
 }
 
-// ---------- Seed editor UI ----------
-function toggleSeedEditor() {
-	seedEditorVisible = !seedEditorVisible;
-	document.getElementById("seedEditor").style.display = seedEditorVisible ? "block" : "none";
-	document.getElementById("toggleSeedBtn").textContent = seedEditorVisible ? "Hide seed" : "Show seed";
+// ============================================================================
+// SEED EDITOR UI
+// Interactive 3D seed editor with per-layer checkbox grids.
+// ============================================================================
+
+function toggleSeedTools() {
+	seedToolsVisible = !seedToolsVisible;
+	document.getElementById("seedTools").style.display =
+		seedToolsVisible ? "block" : "none";
 }
 
+// Render interactive checkbox grid for each Z layer of seed
 function renderSeedEditor() {
 	const container = document.getElementById("seedLayers");
 	container.innerHTML = "";
@@ -127,22 +124,22 @@ function renderSeedEditor() {
 	for (let z = 0; z < n; z++) {
 		const layerDiv = document.createElement("div");
 		layerDiv.className = "seedLayer";
-
-		const title = document.createElement("div");
-		title.className = "seedLayerTitle";
-		title.innerHTML = `<b>Z = ${z}</b><span class="mono">${n}×${n}</span>`;
-		layerDiv.appendChild(title);
+		layerDiv.innerHTML = `<b>Z=${z}</b>`;
 
 		const table = document.createElement("table");
+		table.style.borderCollapse = "collapse";
 
 		for (let y = 0; y < n; y++) {
 			const tr = document.createElement("tr");
 			for (let x = 0; x < n; x++) {
 				const td = document.createElement("td");
+				td.style.padding = "2px";
+
 				const cb = document.createElement("input");
 				cb.type = "checkbox";
 				cb.id = `cb_${x}_${y}_${z}`;
 				cb.checked = !!seed3d[x][y][z];
+
 				td.appendChild(cb);
 				tr.appendChild(td);
 			}
@@ -154,22 +151,13 @@ function renderSeedEditor() {
 	}
 }
 
-function applySeedFromGrid() {
-	const n = seed3d.length;
-	for (let z = 0; z < n; z++) {
-		for (let y = 0; y < n; y++) {
-			for (let x = 0; x < n; x++) {
-				const cb = document.getElementById(`cb_${x}_${y}_${z}`);
-				seed3d[x][y][z] = cb && cb.checked ? 1 : 0;
-			}
-		}
-	}
-	renderCurrentSlice();
-}
-
 function wipeSeed() {
 	const n = seed3d.length;
-	for (let x = 0; x < n; x++) for (let y = 0; y < n; y++) for (let z = 0; z < n; z++) seed3d[x][y][z] = 0;
+	for (let x = 0; x < n; x++)
+		for (let y = 0; y < n; y++)
+			for (let z = 0; z < n; z++)
+				seed3d[x][y][z] = 0;
+
 	renderSeedEditor();
 	renderCurrentSlice();
 }
@@ -186,129 +174,130 @@ function randomizeSeed() {
 	renderCurrentSlice();
 }
 
+// Resize seed preserving content up to minimum dimension
 function resizeSeedFromUI() {
 	const n = parseInt(document.getElementById("seedSize").value, 10);
 	seedSize = n;
 
-	// Keep old content where possible
 	const old = seed3d;
 	seed3d = allocSeed3D(n, 0);
 
 	if (old) {
 		const m = Math.min(old.length, n);
-		for (let x = 0; x < m; x++) for (let y = 0; y < m; y++) for (let z = 0; z < m; z++) {
-			seed3d[x][y][z] = old[x][y][z] ? 1 : 0;
-		}
+		for (let x = 0; x < m; x++)
+			for (let y = 0; y < m; y++)
+				for (let z = 0; z < m; z++)
+					seed3d[x][y][z] = old[x][y][z] ? 1 : 0;
 	}
 
 	renderSeedEditor();
 	renderCurrentSlice();
 }
 
-// ---------- 3D fractal slice computation (on-demand) ----------
+// Read seed values from checkbox UI into seed3d array
+function applySeedFromGrid() {
+	const n = seed3d.length;
+	for (let z = 0; z < n; z++) {
+		for (let y = 0; y < n; y++) {
+			for (let x = 0; x < n; x++) {
+				const cb = document.getElementById(`cb_${x}_${y}_${z}`);
+				seed3d[x][y][z] = cb && cb.checked ? 1 : 0;
+			}
+		}
+	}
+	renderCurrentSlice();
+}
+
+// ============================================================================
+// CORE FRACTAL COMPUTATION
+// Compute 2D XY slice at given Z by toroidal summation of seed.
+// Each iteration level contributes seed[px%N][py%N][pz%N] where p*=floor(pos/step)
+// ============================================================================
+
+// Compute density slice at zSlice via toroidal seed lookup at all iteration scales
 function computeSlice2D(zSlice) {
 	const n = seed3d.length;
-	const slice = new Array(sizexy);
-	for (let x = 0; x < sizexy; x++) slice[x] = new Array(sizexy).fill(0);
+	const slice = Array.from({ length: sizexy }, () =>
+		new Array(sizexy).fill(0)
+	);
 
+	// Sum contributions from each iteration level
 	for (let i = 0; i < iterations - 1; i++) {
-		const step = 2 ** i;
-		const pz = (Math.floor(zSlice / step) % n + n) % n;
+		const step = 1 << i;
+		const pz = Math.floor(zSlice / step) % n;
 
 		for (let x = 0; x < sizexy; x++) {
-			const px = (Math.floor(x / step) % n + n) % n;
+			const px = Math.floor(x / step) % n;
 			for (let y = 0; y < sizexy; y++) {
-				const py = (Math.floor(y / step) % n + n) % n;
+				const py = Math.floor(y / step) % n;
 				slice[x][y] += seed3d[px][py][pz];
 			}
 		}
 	}
 
+	// Compute min/max for normalization
 	let min = Infinity, max = -Infinity;
-	for (let x = 0; x < sizexy; x++) for (let y = 0; y < sizexy; y++) {
-		const v = slice[x][y];
-		if (v < min) min = v;
-		if (v > max) max = v;
-	}
-	const range = (max - min) || 1;
+	for (let x = 0; x < sizexy; x++)
+		for (let y = 0; y < sizexy; y++) {
+			const v = slice[x][y];
+			if (v < min) min = v;
+			if (v > max) max = v;
+		}
 
-	return { slice, min, max, range };
+	return { slice, min, max, range: (max - min) || 1 };
 }
 
-// ---------- Rendering (modes back) ----------
+// ============================================================================
+// RENDERING PIPELINE
+// ============================================================================
+
+// Handle color mode changes (shows/hides level slider)
+function onModeChange() {
+	const mode = document.getElementById("colorMode").value;
+	document.getElementById("levelRow").style.display =
+		(mode === "level") ? "block" : "none";
+	renderCurrentSlice();
+}
+
+// Render current Z-slice to canvas using active color mode
 function renderCurrentSlice() {
 	if (!seed3d) return;
 
 	const mode = document.getElementById("colorMode").value;
 	const { slice, min, max, range } = computeSlice2D(currentZ);
 
-	// update "level" slider range based on actual min/max
-	const levelSlider = document.getElementById("levelSlice");
-	levelSlider.min = min;
-	levelSlider.max = max;
-	if (level < min) level = min;
-	if (level > max) level = max;
-	levelSlider.value = level;
-	document.getElementById("levelValue").textContent = String(level);
+	if (mode === "level") {
+		const ls = document.getElementById("levelSlice");
+		ls.min = min;
+		ls.max = max;
+		ls.value = level;
+		document.getElementById("levelValue").textContent = level;
+	}
 
-	// canvas
 	const canvas = document.getElementById("myCanvas");
-	canvas.width	= sizexy * pixelSize;
+	canvas.width  = sizexy * pixelSize;
 	canvas.height = sizexy * pixelSize;
 	const ctx = canvas.getContext("2d");
 
+	// Render each pixel
 	for (let x = 0; x < sizexy; x++) {
 		for (let y = 0; y < sizexy; y++) {
 			const val = slice[x][y];
 			let color;
 
 			switch (mode) {
-				case "grayscale": {
-					const g = Math.floor(((val - min) / range) * 255);
+				case "alleycat":   color = ["#000","#5ff","#f5f","#fff"][val % 4]; break;
+				case "livingstone":color = ["#000","#5f5","#f55","#ff5"][val % 4]; break;
+				case "level":      color = (val === level) ? "black" : "white"; break;
+				case "binary":     color = (val % 2) ? "white" : "black"; break;
+				case "ternary":    color = (val % 3) ? "white" : "black"; break;
+				case "mod4":       color = (val % 4 < 2) ? "black" : "white"; break;
+				case "rgb":        color = ["#f00","#0f0","#00f"][val % 3]; break;
+				case "hsl":        color = `hsl(${(val-min)/range*360},100%,50%)`; break;
+				default: {         // grayscale
+					const g = ((val-min)/range*255)|0;
 					color = `rgb(${g},${g},${g})`;
-					break;
 				}
-				case "hsl": {
-					const hue = ((val - min) / range) * 360;
-					color = `hsl(${hue}, 100%, 50%)`;
-					break;
-				}
-				case "binary":
-					color = (val % 2 === 0) ? "black" : "white";
-					break;
-
-				case "ternary":
-					color = (val % 3 === 0) ? "black" : "white";
-					break;
-
-				case "mod4":
-					color = (val % 4 === 0 || val % 4 === 1) ? "black" : "white";
-					break;
-
-				case "level":
-					color = (val === level) ? "black" : "white";
-					break;
-
-				case "rgb": {
-					const palette = ["#f00", "#0f0", "#00f"];
-					color = palette[val % palette.length];
-					break;
-				}
-
-				case "livingstone": {
-					const palette = ["#000", "#5f5", "#f55", "#ff5"];
-					color = palette[val % palette.length];
-					break;
-				}
-
-				case "alleycat": {
-					const palette = ["#000", "#5ff", "#f5f", "#fff"];
-					color = palette[val % palette.length];
-					break;
-				}
-
-				default:
-					color = "black";
 			}
 
 			ctx.fillStyle = color;
@@ -317,33 +306,38 @@ function renderCurrentSlice() {
 	}
 
 	document.getElementById("stats").textContent =
-		`iter=${iterations}	size=${sizexy}×${sizexy}	z=${currentZ}/${sizez - 1}	seed=${seed3d.length}³	min=${min}	max=${max}`;
+		`iter=${iterations} size=${sizexy} z=${currentZ}/${sizez-1} seed=${seed3d.length}³`;
 }
 
-// ---------- UI hooks ----------
+// ============================================================================
+// UI EVENT HANDLERS
+// ============================================================================
+
 function updateZSlice() {
 	currentZ = parseInt(document.getElementById("zSlice").value, 10);
-	document.getElementById("zSliceValue").textContent = String(currentZ);
+	document.getElementById("zSliceValue").textContent = currentZ;
 	renderCurrentSlice();
 }
 
 function updateLevel() {
 	level = parseInt(document.getElementById("levelSlice").value, 10);
-	document.getElementById("levelValue").textContent = String(level);
+	document.getElementById("levelValue").textContent = level;
 	renderCurrentSlice();
 }
 
-// ---------- Main ----------
+// ============================================================================
+// INITIALIZATION
+// ============================================================================
+
+// Initialize or reinitialize app state
 function init() {
 	updateGlobalSettings();
 
-	seedSize = parseInt(document.getElementById("seedSize").value, 10);
-
-	if (!seed3d || seed3d.length !== seedSize) {
-		seed3d = makeRingSeed3D(seedSize);
+	if (!seed3d) {
+		seed3d = makeRandomSeed3D(seedSize);
 	}
 
 	renderSeedEditor();
+	onModeChange();
 	renderCurrentSlice();
 }
-

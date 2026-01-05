@@ -1,131 +1,172 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<meta charset="utf-8" />
-	<title>T-Fractal 3D (Z-slicer + seed editor)</title>
-	<style>
-		body { font-family: sans-serif; background:#ccc; margin:0; }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>T-Fractal 3D</title>
+
+<style>
+	body {
+		margin: 0;
+		font-family: sans-serif;
+		background: #ccc;
+	}
+
+	.page {
+		display: grid;
+		grid-template-columns: minmax(0, 520px) 1fr;
+		gap: 12px;
+		padding: 12px;
+	}
+
+	.block {
+		background: #ddd;
+		border: 1px solid #fff;
+		border-radius: 6px;
+		padding: 10px;
+	}
+
+	canvas {
+		border: 1px solid #fff;
+		background: #000;
+		image-rendering: pixelated;
+		max-width: 100%;
+		height: auto;
+		display: block;
+	}
+
+	.row { margin-top: 10px; }
+
+	select, button {
+		font-size: 16px;
+		padding: 6px 10px;
+	}
+
+	input[type="range"] {
+		width: 100%;
+		height: 32px;
+	}
+
+	.mono {
+		font-family: ui-monospace, Menlo, Consolas, monospace;
+	}
+
+	.seedLayers {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 10px;
+		margin-top: 10px;
+	}
+
+	.seedLayer {
+		background: #e7e7e7;
+		border: 1px solid #fff;
+		border-radius: 6px;
+		padding: 6px;
+	}
+
+	/* PHONE */
+	@media (max-width: 900px) {
 		.page {
-			display: grid;
-			grid-template-columns: 520px 1fr;
-			gap: 12px;
-			padding: 12px;
-			align-items: start;
+			grid-template-columns: 1fr;
 		}
-		.block {
-			border: 1px solid #fff;
-			background: #ddd;
-			padding: 10px;
-			border-radius: 6px;
-		}
-		canvas { border: 1px solid #fff; image-rendering: pixelated; background:#000; }
-		.row { margin-top: 10px; }
-		label { display:inline-block; margin-right: 10px; }
-		input[type="range"] { width: 100%; }
-		select, input[type="number"], button { margin-right: 6px; }
-		.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+	}
+</style>
 
-		/* Seed editor */
-		.seedTopRow {
-			display:flex;
-			flex-wrap: wrap;
-			gap: 6px;
-			align-items: center;
-		}
-		.seedLayers {
-			display: grid;
-			grid-template-columns: repeat(2, minmax(0, 1fr));
-			gap: 10px;
-			margin-top: 10px;
-		}
-		.seedLayer {
-			border: 1px solid #fff;
-			background: #e7e7e7;
-			padding: 8px;
-			border-radius: 6px;
-		}
-		.seedLayerTitle {
-			display:flex;
-			justify-content: space-between;
-			align-items: baseline;
-			margin-bottom: 6px;
-		}
-		table { border-collapse: collapse; }
-		td { padding: 2px; }
-	</style>
-
-	<script src="3d.js"></script>
+<script src="3d.js"></script>
 </head>
+
 <body>
-	<div class="page">
+<div class="page">
 
-		<!-- LEFT: controls + seed -->
-		<div class="block">
+	<!-- Controls Panel -->
+	<div class="block">
+
+		<!-- Primary Controls -->
+		<div class="row">
+			<select id="colorMode" onchange="onModeChange()">
+				<option value="alleycat" selected>Alley Cat</option>
+				<option value="livingstone">Livingstone</option>
+				<option value="grayscale">Grayscale</option>
+				<option value="hsl">HSL</option>
+				<option value="binary">Binary</option>
+				<option value="ternary">Ternary</option>
+				<option value="mod4">Mod4</option>
+				<option value="level">Level</option>
+				<option value="rgb">RGB</option>
+			</select>
+
+			<select id="iterations" onchange="init()">
+				<option>6</option>
+				<option>7</option>
+				<option selected>8</option>
+				<option>9</option>
+			</select>
+
+			<select id="pixelSize" onchange="init()">
+				<option>1</option>
+				<option selected>2</option>
+				<option>3</option>
+				<option>4</option>
+			</select>
+
+			<button onclick="randomizeSeed()">Random</button>
+			<button onclick="toggleSeedTools()">+</button>
+		</div>
+
+		<!-- Expandable Seed Editor -->
+		<div id="seedTools" style="display:none">
 
 			<div class="row">
-				<label for="iterations">Iterations:</label>
-				<input type="number" id="iterations" min="1" max="10" value="8" onchange="init()" />
-
-				<label for="pixelSize">Pixel:</label>
-				<input type="number" id="pixelSize" min="1" max="6" value="2" onchange="init()" />
-			</div>
-
-			<div class="row">
-				<label>Mode:</label>
-				<select id="colorMode" onchange="renderCurrentSlice()">
-					<option value="grayscale">Grayscale</option>
-					<option value="hsl">HSL</option>
-					<option value="binary">Black/White (mod 2)</option>
-					<option value="ternary">Black/White (mod 3)</option>
-					<option value="mod4">Black/White (mod 4)</option>
-					<option value="level">Black/White (== level)</option>
-					<option value="rgb">RGB</option>
-					<option value="livingstone">Livingstone (OperaSoft)</option>
-					<option value="alleycat">Alley Cat</option>
-				</select>
-			</div>
-
-			<div class="row">
-				<div class="mono">Z slice: <span id="zSliceValue">0</span> / <span id="zMaxValue">255</span></div>
-				<input type="range" id="zSlice" min="0" max="255" step="1" value="0" oninput="updateZSlice()" />
-			</div>
-
-			<div class="row" id="levelRow">
-				<div class="mono">Level (for “== level” mode): <span id="levelValue">0</span></div>
-				<input type="range" id="levelSlice" min="0" max="1" step="1" value="0" oninput="updateLevel()" />
-			</div>
-
-			<div class="row mono" id="stats"></div>
-
-			<hr />
-
-			<div class="seedTopRow">
-				<label for="seedSize">Seed size (N×N×N):</label>
+				<label for="seedSize">Seed size:</label>
 				<input id="seedSize" type="number" min="2" max="10" value="4" onchange="resizeSeedFromUI()" />
-
-				<button onclick="setRingSeed()">Ring seed</button>
-				<button onclick="randomizeSeed()">Random seed</button>
+				<button onclick="setRingSeed()">Ring</button>
 				<button onclick="wipeSeed()">Wipe</button>
-
-				<button onclick="toggleSeedEditor()" id="toggleSeedBtn">Hide seed</button>
-				<button onclick="applySeedFromGrid()">Apply seed</button>
 			</div>
 
 			<div id="seedEditor" class="row">
 				<div class="seedLayers" id="seedLayers"></div>
+				<button onclick="applySeedFromGrid()">Apply seed</button>
 			</div>
 
 		</div>
 
-		<!-- RIGHT: canvas -->
-		<div class="block">
-			<canvas id="myCanvas"></canvas>
+		<hr />
+
+		<!-- Level Slice Control (Level color mode only) -->
+		<div class="row" id="levelRow" style="display:none">
+			<div class="mono">
+				Level: <span id="levelValue">0</span>
+			</div>
+			<input type="range" id="levelSlice"
+				min="0" max="1" value="0"
+				oninput="updateLevel()" />
 		</div>
+
+		<div class="row mono" id="stats"></div>
 
 	</div>
 
-	<script>
-		init();
-	</script>
+	<!-- Canvas + Z-Slice Panel -->
+	<div class="block">
+		<canvas id="myCanvas"></canvas>
+		
+		<!-- Z-Slice Control -->
+		<div class="row">
+			<div class="mono">
+				Z: <span id="zSliceValue">0</span> /
+				<span id="zMaxValue">0</span>
+			</div>
+			<input type="range" id="zSlice"
+				min="0" max="0" value="0"
+				oninput="updateZSlice()" />
+		</div>
+	</div>
+
+</div>
+
+<script>
+	init();
+</script>
 </body>
 </html>
